@@ -11,7 +11,8 @@ add_definitions(-DIF_OFFICIAL=0)
 ### Cmake flags
 ######################
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++11")
+set(CMAKE_CXX_FLAGS "-std=c++14")
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g -pthread")
 
 ######################
@@ -31,17 +32,27 @@ find_package(catkin REQUIRED COMPONENTS
     cv_bridge
     # pcl
     pcl_conversions
+    pcl_ros
     # msg generation
     message_generation
 )
-
+set(GTSAM_DIR "/home/lesen/Downloads/gtsam-4.0.2/build")
+find_package(PCL 1.8 REQUIRED)
 find_package(OpenMP REQUIRED)
-find_package(PCL REQUIRED)
-find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(OpenCV 4 REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(GTSAM REQUIRED QUIET)
 find_package(Boost REQUIRED COMPONENTS filesystem program_options system timer)
+find_package(teaserpp REQUIRED)
 
+if(GTSAM_FOUND)  
+  message(STATUS "Found GTSAM ${GTSAM_VERSION}")
+  message(STATUS "GTSAM-lib-dir ${GTSAM_LIBRARY_DIRS}")
+      
+else()
+  message(STATUS "GTSAM Not Found")
+endif()
 
 ######################
 ### Message generation
@@ -74,6 +85,9 @@ include_directories(
     ${CERES_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
     ${GTSAM_INCLUDE_DIR}
+    ${EIGEN3_INCLUDE_DIR}
+    ${TEASERPP_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 link_directories(
@@ -85,6 +99,7 @@ link_directories(
 ######################
 ### visual odometry
 ######################
+set (CMAKE_CXX_STANDARD 14)
 file(GLOB visual_feature_files
     "src/visual_odometry/visual_feature/*.cpp"
     "src/visual_odometry/visual_feature/camera_models/*.cc"
@@ -105,6 +120,7 @@ file(GLOB visual_loop_files
     "src/visual_odometry/visual_feature/camera_models/*.cc"
 )
 # Visual Feature Tracker
+set (CMAKE_CXX_STANDARD 14)
 add_executable(${PROJECT_NAME}_visual_feature ${visual_feature_files})
 target_link_libraries(${PROJECT_NAME}_visual_feature ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
 # Visual Odometry
@@ -130,7 +146,8 @@ add_executable(${PROJECT_NAME}_featureExtraction src/lidar_odometry/featureExtra
 add_dependencies(${PROJECT_NAME}_featureExtraction ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_generate_messages_cpp)
 target_link_libraries(${PROJECT_NAME}_featureExtraction ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
 # Mapping Optimization
-add_executable(${PROJECT_NAME}_mapOptmization src/lidar_odometry/mapOptmization.cpp)
+add_executable(${PROJECT_NAME}_mapOptmization src/lidar_odometry/mapOptmization.cpp src/lidar_odometry/Scancontext.cpp)
 add_dependencies(${PROJECT_NAME}_mapOptmization ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_generate_messages_cpp)
 target_compile_options(${PROJECT_NAME}_mapOptmization PRIVATE ${OpenMP_CXX_FLAGS})
-target_link_libraries(${PROJECT_NAME}_mapOptmization PRIVATE ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} ${OpenMP_CXX_FLAGS} gtsam Boost::timer)
+target_link_libraries(${PROJECT_NAME}_mapOptmization PRIVATE ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} ${OpenMP_CXX_FLAGS} 
+                      gtsam Boost::timer teaserpp::teaser_registration teaserpp::teaser_features teaserpp::teaser_io)
