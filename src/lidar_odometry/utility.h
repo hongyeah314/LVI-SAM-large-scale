@@ -14,7 +14,7 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
-#include <opencv/cv.h>
+#include <opencv2/opencv.hpp>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -186,6 +186,12 @@ public:
     int loopclosure_method_;
     int registration_method_;
 
+    int NUM_MATCH_POINTS;
+    float ivox_grid_resolution;
+    int ivox_nearby_type;
+    int ivox_capacity;
+    bool use_ivox;
+
     ParamServer()
     {
         ROS_INFO("Start ParamServer.");
@@ -216,6 +222,12 @@ public:
         nh.param<float>(PROJECT_NAME + "/imuAccBiasN", imuAccBiasN, 0.0002);
         nh.param<float>(PROJECT_NAME + "/imuGyrBiasN", imuGyrBiasN, 0.00003);
         nh.param<float>(PROJECT_NAME + "/imuGravity", imuGravity, 9.80511);
+
+        nh.param<int>(PROJECT_NAME + "/NUM_MATCH_POINTS", NUM_MATCH_POINTS, 5);
+        nh.param<float>(PROJECT_NAME + "/ivox_grid_resolution", ivox_grid_resolution, 0.1);
+        nh.param<int>(PROJECT_NAME + "/ivox_nearby_type", ivox_nearby_type, 26);
+        nh.param<int>(PROJECT_NAME + "/ivox_capacity", ivox_capacity, 3000000);
+        nh.param<bool>(PROJECT_NAME + "/use_ivox", use_ivox, false);
 
     #if IF_OFFICIAL
         ROS_INFO("ParamServer official.");

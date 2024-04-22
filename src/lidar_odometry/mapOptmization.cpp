@@ -22,12 +22,22 @@
 #include <teaser/registration.h>
 #include <include/gicp.h>
 
+#include "include/ivox3d.h"
+
 using namespace gtsam;
 
 using symbol_shorthand::B; // Bias  (ax,ay,az,gx,gy,gz)
 using symbol_shorthand::G; // GPS pose
 using symbol_shorthand::V; // Vel   (xdot,ydot,zdot)
 using symbol_shorthand::X; // Pose3 (x,y,z,r,p,y)
+
+using namespace ivox_map;
+using IVoxType = IVox<3, IVoxNodeType::DEFAULT, PointType>;
+using PointVector = std::vector<PointType, Eigen::aligned_allocator<PointType>>;
+
+IVoxType::Options ivox_options_;
+std::shared_ptr<IVoxType> ivox_surf_ = nullptr;
+std::shared_ptr<IVoxType> ivox_corner_ = nullptr;
 
 /*
     * A point cloud type that has 6D pose info ([x,y,z,roll,pitch,yaw] intensity is time stamp)
@@ -195,6 +205,24 @@ public:
 
     void allocateMemory()
     {
+
+        ivox_options_.resolution_ = ivox_grid_resolution;
+        if (ivox_nearby_type == 0) {
+            ivox_options_.nearby_type_ = IVoxType::NearbyType::CENTER;
+        } else if (ivox_nearby_type == 6) {
+            ivox_options_.nearby_type_ = IVoxType::NearbyType::NEARBY6;
+        } else if (ivox_nearby_type == 18) {
+            ivox_options_.nearby_type_ = IVoxType::NearbyType::NEARBY18;
+        } else if (ivox_nearby_type == 26) {
+            ivox_options_.nearby_type_ = IVoxType::NearbyType::NEARBY26;
+        } else {
+            ROS_WARN("unknown ivox_nearby_type, use NEARBY18");
+            ivox_options_.nearby_type_ = IVoxType::NearbyType::NEARBY18;
+        }
+        ivox_options_.capacity_ = ivox_capacity;
+        ivox_surf_ = std::make_shared<IVoxType>(ivox_options_);
+        ivox_corner_ = std::make_shared<IVoxType>(ivox_options_);
+
         cloudKeyPoses3D.reset(new pcl::PointCloud<PointType>());
         cloudKeyPoses6D.reset(new pcl::PointCloud<PointTypePose>());
 
@@ -998,7 +1026,13 @@ public:
 
             pointOri = laserCloudCornerLastDS->points[i];
             pointAssociateToMap(&pointOri, &pointSel);
-            kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
+
+            if (!use_ivox)
+                kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
+            else {
+                PointVector pointsNear;
+                ivox_corner_->GetClosestPoint(pointSel, pointsNear, NUM_MATCH_POINTS);
+            }
 
             cv::Mat matA1(3, 3, CV_32F, cv::Scalar::all(0));
             cv::Mat matD1(1, 3, CV_32F, cv::Scalar::all(0));
@@ -1324,13 +1358,44 @@ public:
 
     void scan2MapOptimization()
     {
+        static unsigned int frame_count = 0;
+        static unsigned int build_kdtree_count = 0;
+        static std::chrono::duration<double> total_dur_build_kdtree;
+        static std::chrono::duration<double> total_dur_frame;
+
         if (cloudKeyPoses3D->points.empty())
             return;
 
         if (laserCloudCornerLastDSNum > edgeFeatureMinValidNum && laserCloudSurfLastDSNum > surfFeatureMinValidNum)
         {
-            kdtreeCornerFromMap->setInputCloud(laserCloudCornerFromMapDS);
-            kdtreeSurfFromMap->setInputCloud(laserCloudSurfFromMapDS);
+            frame_count++;
+            auto now_frame = std::chrono::system_clock::now();
+
+            build_kdtree_count++;
+            auto now_build_kdtree = std::chrono::system_clock::now();
+            
+            if (!use_ivox) {
+                kdtreeCornerFromMap->setInputCloud(laserCloudCornerFromMapDS);
+                kdtreeSurfFromMap->setInputCloud(laserCloudSurfFromMapDS);
+            }
+            else {
+                PointVector points_surf_add;
+                for (size_t i = 0; i < laserCloudSurfFromMapDS->size(); ++i) {
+                    points_surf_add.emplace_back(laserCloudSurfFromMapDS->points[i]);
+                }
+                ivox_surf_->AddPoints(points_surf_add);
+
+                PointVector points_corner_add;
+                for (size_t i = 0; i < laserCloudCornerFromMapDS->size(); ++i) {
+                    points_corner_add.emplace_back(laserCloudCornerFromMapDS->points[i]);
+                }
+                ivox_corner_->AddPoints(points_corner_add);
+            }
+
+            auto dur_build_kdtree = std::chrono::system_clock::now() - now_build_kdtree;
+            float cur_dur_build_kdtree = std::chrono::duration_cast<std::chrono::microseconds>(dur_build_kdtree).count() / 1000.0;
+            std::cout << "duration ms : build kdtree  : " << cur_dur_build_kdtree << std::endl;
+            total_dur_build_kdtree += dur_build_kdtree;
 
             for (int iterCount = 0; iterCount < 30; iterCount++)
             {
@@ -1345,6 +1410,18 @@ public:
                 if (LMOptimization(iterCount) == true)
                     break;
             }
+
+            auto dur_frame = std::chrono::system_clock::now() - now_frame;
+            float cur_dur_frame = std::chrono::duration_cast<std::chrono::microseconds>(dur_frame).count() / 1000.0;
+            std::cout << "duration ms : current frame : " << cur_dur_frame << std::endl;
+            total_dur_frame += dur_frame;
+
+            float avg_dur_build_kdtree = std::chrono::duration_cast<std::chrono::microseconds>(total_dur_build_kdtree).count() / 1000.0 / build_kdtree_count;
+            float avg_dur_frame = std::chrono::duration_cast<std::chrono::microseconds>(total_dur_frame).count() / 1000.0 / frame_count;
+            std::cout << "average duration ms : build kdtree : " << avg_dur_build_kdtree << std::endl;
+            std::cout << "average duration ms : one frame    : " << avg_dur_frame << std::endl;
+
+            std::cout << "--------------------------------------------------------------------------------" << std::endl;
 
             transformUpdate();
         }

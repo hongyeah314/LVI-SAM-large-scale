@@ -11,9 +11,9 @@ add_definitions(-DIF_OFFICIAL=0)
 ### Cmake flags
 ######################
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++14")
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_FLAGS "-std=c++17")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g -pthread")
+set(ncnn_DIR "/home/chenxu/third_party/ncnn/ncnn/build/install/lib/cmake/ncnn")
 
 ######################
 ### Packages
@@ -37,7 +37,7 @@ find_package(catkin REQUIRED COMPONENTS
     message_generation
 )
 set(GTSAM_DIR "/home/lesen/Downloads/gtsam-4.0.2/build")
-find_package(PCL 1.8 REQUIRED)
+find_package(PCL REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV 4 REQUIRED)
@@ -96,10 +96,12 @@ link_directories(
     ${GTSAM_LIBRARY_DIRS}
 )
 
+add_definitions(${PCL_DEFINITIONS})
+
 ######################
 ### visual odometry
 ######################
-set (CMAKE_CXX_STANDARD 14)
+
 file(GLOB visual_feature_files
     "src/visual_odometry/visual_feature/*.cpp"
     "src/visual_odometry/visual_feature/camera_models/*.cc"
@@ -120,7 +122,7 @@ file(GLOB visual_loop_files
     "src/visual_odometry/visual_feature/camera_models/*.cc"
 )
 # Visual Feature Tracker
-set (CMAKE_CXX_STANDARD 14)
+
 add_executable(${PROJECT_NAME}_visual_feature ${visual_feature_files})
 target_link_libraries(${PROJECT_NAME}_visual_feature ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
 # Visual Odometry

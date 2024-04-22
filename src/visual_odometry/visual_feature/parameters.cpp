@@ -45,7 +45,7 @@ void readParameters(ros::NodeHandle &n)
     std::string config_file;
     ROS_INFO("visual_feature getting param.");
     n.getParam("vins_config_file", config_file);
-    config_file = "/home/lesen/jhonray/LVI-SAM/src/LVI-SAM-modified/config/params_camera.yaml";
+    config_file = "/home/chenxu/git_work/src/LVI-SAM-large-scale/config/M2DGR_camera.yaml";
     std::cout << config_file << std::endl;
     cv::FileStorage fsSettings(config_file, cv::FileStorage::READ);
     ROS_INFO("visual_feature filestorage.");

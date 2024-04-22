@@ -2,6 +2,7 @@
 
 #include "parameters.h"
 #include "keyframe.h"
+#include <opencv2/core/eigen.hpp>
 
 using namespace DVision;
 using namespace DBoW2;
